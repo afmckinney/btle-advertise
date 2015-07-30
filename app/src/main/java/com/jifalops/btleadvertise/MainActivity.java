@@ -7,14 +7,17 @@ import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.ScanCallback;
-import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.ParcelUuid;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -33,7 +36,29 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        final ScrollView scroll = (ScrollView) findViewById(R.id.scrollView);
         textView = (TextView) findViewById(R.id.text);
+        textView.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                scroll.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        scroll.fullScroll(View.FOCUS_DOWN);
+                    }
+                });
+            }
+        });
         btManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
     }
 
@@ -61,14 +86,14 @@ public class MainActivity extends Activity {
 
         // Choose advertise settings for long range, but infrequent advertising.
         AdvertiseSettings.Builder settings = new AdvertiseSettings.Builder();
-        settings.setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER); // Default
+        settings.setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY);
         settings.setConnectable(false); // We are not handling connections.
         settings.setTimeout(0); // No time limit;
-        settings.setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH); // Long range. Conflict with low power mode?
+        settings.setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH); // Long range.
 
         AdvertiseData.Builder data = new AdvertiseData.Builder();
         data.addServiceUuid(new ParcelUuid(UUID.fromString(SERVICE_UUID)));
-        data.setIncludeDeviceName(true);
+        data.setIncludeDeviceName(false);
         data.setIncludeTxPowerLevel(true);
 
         btAdapter.getBluetoothLeAdvertiser().startAdvertising(settings.build(), data.build(), adCallback);
@@ -78,9 +103,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        btAdapter.getBluetoothLeAdvertiser().stopAdvertising(adCallback);
-        btAdapter.getBluetoothLeScanner().stopScan(scanCallback);
-        btAdapter.getBluetoothLeScanner().flushPendingScanResults(scanCallback);
+        if (btAdapter != null && btAdapter.isEnabled()) {
+            btAdapter.getBluetoothLeAdvertiser().stopAdvertising(adCallback);
+            btAdapter.getBluetoothLeScanner().stopScan(scanCallback);
+            btAdapter.getBluetoothLeScanner().flushPendingScanResults(scanCallback);
+        }
     }
 
     @Override
@@ -167,13 +194,8 @@ public class MainActivity extends Activity {
         }
 
         private void printScanResult(ScanResult result) {
-            String id = "unknown";
-            int tx = 0;
-            ScanRecord rec = result.getScanRecord();
-            if (rec != null) {
-                id = rec.getDeviceName();
-                tx = rec.getTxPowerLevel();
-            }
+            String id = result.getDevice() != null ? result.getDevice().getAddress() : "unknown";
+            int tx = result.getScanRecord() != null ? result.getScanRecord().getTxPowerLevel() : 0;
             textView.append("TX: " + tx + " RX: " + result.getRssi() + " from " + id+ ".\n");
         }
     };
